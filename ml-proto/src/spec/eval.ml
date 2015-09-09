@@ -14,6 +14,7 @@ let error = Error.error
 type value = Values.value
 type expr_value = value option
 type func = Ast.func
+type import = expr_value list -> expr_value
 
 module ExportMap = Map.Make(String)
 type export_map = func ExportMap.t
@@ -21,6 +22,7 @@ type export_map = func ExportMap.t
 type instance =
 {
   funcs : func list;
+  imports : import list;
   exports : export_map;
   tables : func list list;
   globals : value ref list;
@@ -45,6 +47,7 @@ let lookup category list x =
     error x.at ("runtime: undefined " ^ category ^ " " ^ string_of_int x.it)
 
 let func c x = lookup "function" c.modul.funcs x
+let import c x = lookup "import" c.modul.imports x
 let global c x = lookup "global" c.modul.globals x
 let table c x y = lookup "entry" (lookup "table" c.modul.tables x) y
 let local c x = lookup "local" c.locals x
@@ -132,6 +135,10 @@ let rec eval_expr (c : config) (e : expr) =
   | Call (x, es) ->
     let vs = List.map (eval_expr c) es in
     eval_func c.modul (func c x) vs e.at
+
+  | CallImport (x, es) ->
+    let vs = List.map (eval_expr c) es in
+    (import c x) vs
 
   | CallIndirect (x, e1, es) ->
     let i = int32 (eval_expr c e1) e1.at in
@@ -228,8 +235,9 @@ and eval_func (m : instance) (f : func) (evs : expr_value list) (at : region) =
 
 (* Modules *)
 
-let init m =
-  let {Ast.funcs; exports; tables; globals; memory} = m.it in
+let init m imports =
+  assert ((List.length imports) = (List.length m.it.Ast.imports));
+  let {Ast.exports; globals; tables; funcs; memory; _} = m.it in
   let mem =
     match memory with
     | None -> Memory.create 0
@@ -243,7 +251,7 @@ let init m =
   let exports = List.fold_right export exports ExportMap.empty in
   let tables = List.map (fun tab -> List.map func tab.it) tables in
   let globals = List.map eval_decl globals in
-  {funcs; exports; tables; globals; memory = mem}
+  {funcs; imports; exports; tables; globals; memory = mem}
 
 let invoke m name vs =
   let evs = List.map (fun v -> Some v) vs in
@@ -254,5 +262,5 @@ let eval e =
   let f = {params = []; result = None; locals = []; body = e} @@ no_region in
   let memory = Memory.create 0 in
   let exports = ExportMap.singleton "eval" f in
-  let m = {funcs = [f]; exports; tables = []; globals = []; memory} in
+  let m = {imports = []; exports; globals = []; tables = []; funcs = [f]; memory} in
   eval_func m f [] e.at
