@@ -117,7 +117,7 @@ type expr =
   | If of expr * expr * expr                (* conditional
   | Loop of expr                            (* infinite loop
   | Label of expr                           (* labelled expression
-  | Break of int * expr                     (* break to n-th surrounding label
+  | Break of int * expr option              (* break to n-th surrounding label
   | Switch of expr * arm list * expr        (* switch, latter expr is default
   | Call of var * expr list                 (* call function
   | CallImport of var * expr list           (* call imported function
@@ -168,7 +168,7 @@ expr:
   ( if <expr> <expr> )                     ;; = (if <expr> <expr> (nop))
   ( loop <expr>* )                         ;; = (loop (block <expr>*))
   ( label <name>? <expr>* )                ;; = (label (block <expr>*))
-  ( break <var> <expr> )
+  ( break <var> <expr>? )
   ( break )                                ;; = (break 0)
   ( <type>.switch <expr> <case>* <expr> )
   ( call <var> <expr>* )
@@ -230,8 +230,8 @@ script: <cmd>*
 cmd:
   <module>                                       ;; define, validate, and initialize module
   ( invoke <name> <expr>* )                      ;; invoke export and print result
-  ( asserteq (invoke <name> <expr>* ) <expr> )   ;; assert expected results of invocation
-  ( assertinvalid <module> <failure> )           ;; assert invalid module with given failure string
+  ( assert_eq (invoke <name> <expr>* ) <expr> )  ;; assert expected results of invocation
+  ( assert_invalid <module> <failure> )          ;; assert invalid module with given failure string
 ```
 
 Invocation is only possible after a module has been defined.
