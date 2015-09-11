@@ -56,14 +56,10 @@ let nary = List.map (fun ty -> [ty])
 (* Type Synthesis *)
 
 let type_mem = function
-  | Memory.SInt8Mem -> Int32Type
-  | Memory.SInt16Mem -> Int32Type
-  | Memory.SInt32Mem -> Int32Type
-  | Memory.SInt64Mem -> Int64Type
-  | Memory.UInt8Mem -> Int32Type
-  | Memory.UInt16Mem -> Int32Type
-  | Memory.UInt32Mem -> Int32Type
-  | Memory.UInt64Mem -> Int64Type
+  | Memory.Int8Mem -> Int32Type
+  | Memory.Int16Mem -> Int32Type
+  | Memory.Int32Mem -> Int32Type
+  | Memory.Int64Mem -> Int64Type
   | Memory.Float32Mem -> Float32Type
   | Memory.Float64Mem -> Float64Type
 
@@ -188,15 +184,15 @@ let rec check_expr c ts e =
     check_expr c [global c x] e1;
     check_type [] ts e.at
 
-  | Load (memop, e1) ->
-    check_memop memop e.at;
+  | Load (loadop, e1) ->
+    check_memop loadop.align e.at;
     check_expr c [Int32Type] e1;
-    check_type [type_mem memop.mem] ts e.at
+    check_type [type_mem loadop.mem] ts e.at
 
-  | Store (memop, e1, e2) ->
-    check_memop memop e.at;
+  | Store (storeop, e1, e2) ->
+    check_memop storeop.align e.at;
     check_expr c [Int32Type] e1;
-    check_expr c [memop.ty] e2;
+    check_expr c [type_mem storeop.mem] e2;
     check_type [] ts e.at
 
   | Const v ->
@@ -239,17 +235,8 @@ and check_arm c t ts arm =
   check_literal c [t] l;
   check_expr c (if fallthru then [] else ts) e
 
-and check_memop {ty; mem; align} at =
-  require (Lib.Int.is_power_of_two align) at "non-power-of-two alignment";
-  let open Memory in
-  match mem, ty with
-  | (SInt8Mem | SInt16Mem | SInt32Mem), Int32Type
-  | (UInt8Mem | UInt16Mem | UInt32Mem), Int32Type
-  | (SInt8Mem | SInt16Mem | SInt32Mem | SInt64Mem), Int64Type
-  | (UInt8Mem | UInt16Mem | UInt32Mem | UInt64Mem), Int64Type
-  | Float32Mem, Float32Type
-  | Float64Mem, Float64Type -> ()
-  | _ -> error at "type-inconsistent memory operator"
+and check_memop align at =
+  require (Lib.Int.is_power_of_two align) at "non-power-of-two alignment"
 
 
 (*
